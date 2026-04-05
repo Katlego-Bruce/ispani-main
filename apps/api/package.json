@@ -29,6 +29,7 @@
     "@nestjs/bull": "^10.2.0",
     "@nestjs/websockets": "^10.4.0",
     "@nestjs/platform-socket.io": "^10.4.0",
+    "swagger-ui-express": "^5.0.0",
     "typeorm": "^0.3.20",
     "pg": "^8.13.0",
     "ioredis": "^5.4.0",
@@ -63,7 +64,7 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": { "^.+\\.(t|j)s$": "ts-jest" },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "collectCoverageFrom": ["**/*.(t|j)s", "!**/__tests__/**", "!**/node_modules/**"],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "moduleNameMapper": { "^@/(.*)$": "<rootDir>/$1" }
