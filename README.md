@@ -12,6 +12,63 @@ It provides a **trusted, compliant, and fair-pay-driven ecosystem** for managing
 
 ---
 
+## 🛠️ Quick Start
+
+### Prerequisites
+
+* **Node.js** >= 20.0.0 ([download](https://nodejs.org/))
+* **pnpm** 9.15.0 (`npm install -g pnpm@9.15.0`)
+* **Docker** & Docker Compose ([download](https://docker.com/))
+
+### Setup
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/Katlego-Bruce/ispani-main.git
+cd ispani-main
+
+# 2. Install dependencies
+pnpm install
+
+# 3. Start infrastructure (PostgreSQL + Redis)
+docker compose up -d
+
+# 4. Copy environment variables
+cp apps/api/.env.example apps/api/.env.local
+
+# 5. Start all apps in development mode
+pnpm dev
+```
+
+### Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start all apps in development mode |
+| `pnpm build` | Build all apps and packages |
+| `pnpm lint` | Lint all apps and packages |
+| `pnpm test` | Run tests across all apps |
+| `pnpm format` | Format code with Prettier |
+| `pnpm clean` | Clean all build outputs |
+
+### Development URLs
+
+| App | URL | Port |
+|-----|-----|------|
+| Web (Tenant Dashboard) | http://localhost:3000 | 3000 |
+| Admin Panel | http://localhost:3001 | 3001 |
+| API (NestJS) | http://localhost:8080 | 8080 |
+| Mobile (Expo) | Expo Dev Client | 8081 |
+
+### Using GitHub Codespaces
+
+1. Click **"Code"** → **"Codespaces"** → **"Create codespace on main"**
+2. Wait for the devcontainer to build (~3 min)
+3. Run `pnpm install` then `pnpm dev`
+4. Ports are auto-forwarded for instant access
+
+---
+
 ## 🧠 Architecture Summary
 
 ### Architecture Style
@@ -73,7 +130,10 @@ ispani/
 │   ├── terraform/
 │   └── ci-cd/
 │
+├── .devcontainer/       # GitHub Codespace config
+├── .github/workflows/   # CI/CD pipelines
 ├── turbo.json
+├── pnpm-workspace.yaml
 └── package.json
 ```
 
@@ -83,17 +143,19 @@ ispani/
 
 ### Frontend
 
-* React Native (Expo)
-* Next.js 14 (App Router)
+* React Native (Expo) — Mobile app
+* Next.js 14 (App Router) — Web + Admin
 
 ### Backend
 
-* NestJS (Node.js + TypeScript)
+* NestJS (Node.js + TypeScript) — API
 
 ### Infrastructure
 
-* PostgreSQL (with PostGIS)
-* Redis (cache, queues, WebSockets)
+* PostgreSQL (with PostGIS) — Database
+* Redis — Cache, queues, WebSockets
+* BullMQ — Job queue
+* Docker Compose — Local development
 
 ---
 
@@ -108,146 +170,8 @@ ispani/
 
 ## 🏢 Multi-Tenancy Model
 
-### Approach
-
 * Row-level multi-tenancy using `organization_id`
 * PostgreSQL Row-Level Security (RLS)
-
-```sql
-ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY tenant_isolation ON jobs
-USING (organization_id = current_setting('app.current_org')::uuid);
-```
-
----
-
-## 🗄️ Database Architecture
-
-### Users & Organizations
-
-```sql
-users
-- id
-- type
-- phone
-- email
-- kyc_status
-- trust_score
-- created_at
-
-organizations
-- id
-- name
-- plan
-- plan_status
-- subscription_id
-- created_at
-```
-
----
-
-### Jobs
-
-```sql
-jobs
-- id
-- organization_id
-- client_id
-- title
-- description
-- location (PostGIS)
-- payment_amount
-- status
-- created_at
-```
-
----
-
-### Wallet & Ledger
-
-```sql
-wallets
-- user_id
-- available_balance
-- held_balance
-- pending_balance
-
-ledger_entries
-- wallet_id
-- type (debit|credit)
-- amount
-- reference_type
-- reference_id
-```
-
----
-
-### Escrow
-
-```sql
-escrow
-- job_id
-- amount
-- status
-
-escrow_events
-- escrow_id
-- event_type
-- amount
-```
-
----
-
-### Disputes
-
-```sql
-disputes
-- job_id
-- status
-- evidence_urls
-- resolution_deadline
-```
-
----
-
-### Trust System
-
-```sql
-ratings
-- job_id
-- score
-- comment
-
-trust_score_events
-- user_id
-- score_delta
-- reason
-```
-
----
-
-### Fair Pay Engine
-
-```sql
-pay_rules
-- category
-- region
-- min_rate
-```
-
----
-
-### Audit Logs
-
-```sql
-audit_logs
-- actor_id
-- action
-- entity_type
-- metadata
-- created_at
-```
 
 ---
 
@@ -255,23 +179,12 @@ audit_logs
 
 ```
 modules/
-├── auth/
-├── users/
-├── organizations/
-├── billing/
-├── jobs/
-├── job-execution/
-├── escrow/
-├── wallet/
-├── ledger/
-├── trust/
-├── disputes/
-├── notifications/
-├── realtime/
-├── analytics/
-├── community/
-├── fair-pay/
-└── audit/
+├── auth/          ├── escrow/        ├── notifications/
+├── users/         ├── wallet/        ├── realtime/
+├── organizations/ ├── ledger/        ├── analytics/
+├── billing/       ├── trust/         ├── community/
+├── jobs/          ├── disputes/      ├── fair-pay/
+├── job-execution/                    └── audit/
 ```
 
 ---
@@ -280,11 +193,7 @@ modules/
 
 ### Events
 
-* job.created
-* job.assigned
-* escrow.funded
-* job.completed
-* payout.processed
+* job.created → job.assigned → escrow.funded → job.completed → payout.processed
 
 ### Queue System
 
@@ -292,112 +201,11 @@ modules/
 
 ---
 
-## 📍 Geolocation Engine
+## 🔐 Security
 
-* PostGIS for location queries
-* GIST indexing for performance
-
-### Matching Algorithm
-
-* Distance
-* Trust score
-* Skill match
-* Availability
-* Completion rate
-
----
-
-## 🔐 Security Architecture
-
-* JWT authentication
-* OTP via SMS
-* Rate limiting (Redis)
-* Device tracking
+* JWT authentication + OTP via SMS
+* Rate limiting (Redis) + Device tracking
 * KYC verification (ID + selfie + bank verification)
-
----
-
-## 📱 Mobile App Structure
-
-```
-mobile/src/
-├── screens/
-├── components/
-├── services/
-├── store/
-├── hooks/
-└── utils/
-```
-
-### Features
-
-* Job feed
-* Accept job
-* GPS check-in
-* Proof upload
-* Wallet & payouts
-
----
-
-## 💻 Web Platform (Tenant Dashboard)
-
-```
-web/src/app/
-├── onboarding/
-├── dashboard/
-├── jobs/
-├── workers/
-├── analytics/
-├── disputes/
-├── billing/
-```
-
----
-
-## 🧑‍💼 Super Admin Panel
-
-```
-admin/
-├── tenants/
-├── kyc-queue/
-├── fraud/
-├── revenue/
-```
-
----
-
-## 📡 Notifications
-
-* Firebase Cloud Messaging (push)
-* Twilio (SMS)
-
----
-
-## 📊 Analytics & Metrics
-
-Track:
-
-* Monthly Recurring Revenue (MRR)
-* Active jobs
-* Worker retention
-* Dispute rate
-* Fraud incidents
-
----
-
-## ☁️ Infrastructure
-
-* AWS / GCP
-* Docker (containers)
-* Kubernetes (future)
-* Cloudflare (CDN)
-
----
-
-## 🔄 CI/CD Pipeline
-
-* GitHub Actions
-* Build → Test → Deploy
 
 ---
 
@@ -435,15 +243,8 @@ Ispani is designed to become:
 
 ---
 
-## 🏁 Final Note
+## 📄 License
 
-This architecture is designed to be:
-
-* Scalable
-* Secure
-* Compliant
-* South African-focused
-
-It supports growth from MVP to enterprise-level deployment without major rewrites.
+Private — All rights reserved.
 
 ---
