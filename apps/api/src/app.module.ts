@@ -1,5 +1,12 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { JobsModule } from './jobs/jobs.module';
+import { User } from './entities/user.entity';
+import { Organization } from './entities/organization.entity';
+import { Job } from './entities/job.entity';
 
 @Module({
   imports: [
@@ -7,13 +14,20 @@ import { ConfigModule } from '@nestjs/config';
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
-    // TODO: Add modules as they are built
-    // TypeOrmModule.forRoot({...}),
-    // AuthModule,
-    // UsersModule,
-    // JobsModule,
-    // EscrowModule,
-    // WalletModule,
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        url: config.get('DATABASE_URL'),
+        entities: [User, Organization, Job],
+        synchronize: config.get('NODE_ENV') !== 'production',
+        logging: config.get('NODE_ENV') === 'development',
+      }),
+    }),
+    AuthModule,
+    UsersModule,
+    JobsModule,
   ],
 })
 export class AppModule {}
