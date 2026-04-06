@@ -1,5 +1,15 @@
-// Ispani Backend - Prisma Schema
-// Community-driven job marketplace
+// ══════════════════════════════════════════════════════════════════════
+// Ispani Backend - Prisma Schema (v2.0)
+// Community-driven job marketplace — South African Legal Compliance
+// ══════════════════════════════════════════════════════════════════════
+// Legal Framework Compliance:
+//   - Labour Relations Act 66 of 1995 (Section 200A — contractor classification)
+//   - Basic Conditions of Employment Act 75 of 1997
+//   - Protection of Personal Information Act 4 of 2013 (POPIA)
+//   - National Minimum Wage Act 9 of 2018 (R27.58/hr as of March 2024)
+//   - Consumer Protection Act 68 of 2008
+//   - Electronic Communications and Transactions Act 25 of 2002 (ECTA)
+// ══════════════════════════════════════════════════════════════════════
 
 generator client {
   provider = "prisma-client-js"
@@ -10,7 +20,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── User Types ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════
+
+// ─── User Types ──────────────────────────────────────────────
 enum UserType {
   worker
   client
@@ -23,15 +37,7 @@ enum KycStatus {
   rejected
 }
 
-// ─── Application Status ──────────────────────────────────────────
-enum ApplicationStatus {
-  pending
-  accepted
-  rejected
-  withdrawn
-}
-
-// ─── Job Status ──────────────────────────────────────────────────
+// ─── Job Status ──────────────────────────────────────────────
 enum JobStatus {
   draft
   open
@@ -39,72 +45,551 @@ enum JobStatus {
   in_progress
   completed
   cancelled
+  disputed     // NEW: job is under dispute review
 }
 
-// ─── Models ──────────────────────────────────────────────────────
+// ─── Application Status ──────────────────────────────────────
+enum ApplicationStatus {
+  pending
+  accepted
+  rejected
+  withdrawn
+}
 
+// ─── Dispute System (CPA Section 49) ─────────────────────────
+enum DisputeCategory {
+  non_performance   // Worker didn't show up / didn't complete
+  quality           // Work quality issues
+  safety            // Safety concerns during job
+  payment           // Payment disagreement
+  fraud             // Suspected fraudulent activity
+  harassment        // Inappropriate behavior
+  other
+}
+
+enum DisputeStatus {
+  open
+  under_review
+  mediation         // Both parties engaged in resolution
+  resolved
+  escalated         // Escalated to admin / external body
+  closed
+}
+
+// ─── Payment System ──────────────────────────────────────────
+enum PaymentStatus {
+  pending
+  escrow_held       // Money held in escrow
+  released          // Released to worker
+  refunded          // Refunded to client (CPA Section 55-56)
+  failed
+  cancelled
+}
+
+enum PaymentMethod {
+  bank_transfer
+  mobile_money      // M-Pesa, etc.
+  card
+  cash              // For tracking only
+  platform_wallet
+}
+
+// ─── POPIA Consent ───────────────────────────────────────────
+enum ConsentType {
+  data_collection        // Basic data collection consent
+  location_tracking      // GPS/location data
+  marketing              // Marketing communications
+  third_party_sharing    // Sharing with payment partners, etc.
+  profiling              // AI matching / recommendations
+}
+
+enum ConsentMethod {
+  clickwrap         // UI checkbox acceptance (ECTA Section 13)
+  explicit_written  // Uploaded signed document
+  verbal_recorded   // Recorded verbal consent
+}
+
+// ─── Terms & Agreements (ECTA Section 13) ────────────────────
+enum TermsType {
+  platform_tos              // General Terms of Service
+  privacy_policy            // Privacy Policy (POPIA)
+  contractor_agreement      // Independent Contractor Agreement (LRA 200A)
+  client_agreement          // Client service agreement
+  community_guidelines      // Community standards
+  cookie_policy             // Cookie consent
+}
+
+// ─── Data Subject Requests (POPIA Section 23-24) ─────────────
+enum DataRequestType {
+  access              // Section 23: Right to access personal info
+  correction          // Section 24: Right to correct
+  deletion            // Section 24: Right to delete ("right to be forgotten")
+  objection           // Section 11(3): Right to object to processing
+  data_portability    // Export all personal data
+}
+
+enum DataRequestStatus {
+  pending
+  processing
+  fulfilled
+  rejected            // With documented reason
+}
+
+// ─── Notification Types ──────────────────────────────────────
+enum NotificationType {
+  job_posted
+  application_received
+  application_accepted
+  application_rejected
+  job_started
+  job_completed
+  review_received
+  dispute_opened
+  dispute_resolved
+  payment_received
+  payment_released
+  terms_updated
+  account_alert
+  system
+}
+
+// ─── South African Provinces ─────────────────────────────────
+enum SAProvince {
+  gauteng
+  western_cape
+  kwazulu_natal
+  eastern_cape
+  free_state
+  limpopo
+  mpumalanga
+  north_west
+  northern_cape
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODELS
+// ═══════════════════════════════════════════════════════════════
+
+// ─── 1. USER ─────────────────────────────────────────────────
+// Enhanced with POPIA, KYC, and contractor-safe fields
 model User {
-  id            String    @id @default(uuid())
-  type          UserType  @default(worker)
-  email         String    @unique
-  phone         String?
+  id            String      @id @default(uuid())
+  type          UserType    @default(worker)
+  email         String      @unique
+  phone         String?     // Never publicly exposed (POPIA)
   first_name    String?
   last_name     String?
   password_hash String
-  kyc_status    KycStatus @default(pending)
-  trust_score   Float     @default(50)
-  skills        String[]  @default([])
-  location_lat  Float?
-  location_lng  Float?
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+  
+  // ─── KYC & Identity (POPIA Section 19 — security) ─────────
+  kyc_status        KycStatus   @default(pending)
+  id_number_hash    String?     // SA ID number — stored as hash only (POPIA)
+  id_verified_at    DateTime?
+  id_verification_method String? // e.g., "manual_upload", "trueid_api"
+  
+  // ─── Trust System ─────────────────────────────────────────
+  trust_score       Float       @default(50)
+  total_reviews     Int         @default(0)
+  avg_rating        Float       @default(0)
+  
+  // ─── Worker-specific fields ───────────────────────────────
+  skills            String[]    @default([])
+  sa_province       SAProvince?
+  
+  // ─── Location (POPIA: requires consent for tracking) ──────
+  location_lat      Float?
+  location_lng      Float?
+  location_updated_at DateTime?
+  
+  // ─── Contractor Classification (LRA Section 200A) ─────────
+  // These fields help prove independent contractor status
+  tools_self_provided       Boolean   @default(true)
+  multi_client_declaration  Boolean   @default(false) // Worker declares they serve multiple clients
+  
+  // ─── POPIA Compliance ─────────────────────────────────────
+  popia_consent_at          DateTime?   // When POPIA consent was given
+  popia_consent_version     String?     // Which version of privacy policy
+  popia_consent_withdrawn_at DateTime?  // If consent was withdrawn
+  data_purge_after          DateTime?   // Scheduled data deletion date
+  account_deleted_at        DateTime?   // Soft delete (retain for legal period)
+  
+  // ─── Platform ─────────────────────────────────────────────
+  is_active         Boolean     @default(true)
+  is_banned         Boolean     @default(false)
+  ban_reason        String?
+  last_login_at     DateTime?
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
 
-  // Relations
-  posted_jobs    Job[]         @relation("ClientJobs")
-  assigned_jobs  Job[]         @relation("WorkerJobs")
-  applications   Application[]
+  // ─── Relations ────────────────────────────────────────────
+  posted_jobs               Job[]               @relation("ClientJobs")
+  assigned_jobs             Job[]               @relation("WorkerJobs")
+  applications              Application[]
+  reviews_given             Review[]            @relation("ReviewerReviews")
+  reviews_received          Review[]            @relation("RevieweeReviews")
+  disputes_raised           Dispute[]           @relation("DisputeRaiser")
+  disputes_against          Dispute[]           @relation("DisputeTarget")
+  disputes_resolved         Dispute[]           @relation("DisputeResolver")
+  terms_acceptances         TermsAcceptance[]
+  consents                  Consent[]
+  data_requests             DataAccessRequest[]
+  notifications             Notification[]
+  payments_made             Payment[]           @relation("PayerPayments")
+  payments_received         Payment[]           @relation("PayeePayments")
+  contractor_agreements     ContractorAgreement[]
+  audit_logs                AuditLog[]
+  earnings_logs             EarningsLog[]
 
   @@map("users")
 }
 
+// ─── 2. JOB ──────────────────────────────────────────────────
+// Enhanced with pricing protection and legal compliance fields
 model Job {
   id               String    @id @default(uuid())
   title            String
   description      String
   category         String?
+  
+  // ─── Location ─────────────────────────────────────────────
   location_lat     Float?
   location_lng     Float?
   location_address String?
-  payment_amount   Decimal   @db.Decimal(10, 2)
+  sa_province      SAProvince?
+  
+  // ─── Pricing (National Minimum Wage Act protection) ───────
+  payment_amount       Decimal   @db.Decimal(10, 2)
+  rate_per_hour        Decimal?  @db.Decimal(10, 2) // For hourly jobs
+  estimated_hours      Float?                        // Expected duration
+  ai_suggested_rate    Decimal?  @db.Decimal(10, 2) // AI fair pricing suggestion
+  below_minimum_flag   Boolean   @default(false)    // Flagged if rate < R27.58/hr
+  pricing_acknowledged Boolean   @default(false)    // Client acknowledged pricing warning
+  
+  // ─── Job Status ───────────────────────────────────────────
   status           JobStatus @default(draft)
   deadline         DateTime?
+  started_at       DateTime?
+  completed_at     DateTime?
+  
+  // ─── Timestamps ───────────────────────────────────────────
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
 
-  // Relations
-  client_id   String
-  client      User          @relation("ClientJobs", fields: [client_id], references: [id])
-  worker_id   String?
-  worker      User?         @relation("WorkerJobs", fields: [worker_id], references: [id])
-  applications Application[]
+  // ─── Relations ────────────────────────────────────────────
+  client_id    String
+  client       User          @relation("ClientJobs", fields: [client_id], references: [id])
+  worker_id    String?
+  worker       User?         @relation("WorkerJobs", fields: [worker_id], references: [id])
+  
+  applications  Application[]
+  reviews       Review[]
+  disputes      Dispute[]
+  payments      Payment[]
+  pricing_logs  PricingLog[]
 
   @@map("jobs")
 }
 
+// ─── 3. APPLICATION ──────────────────────────────────────────
 model Application {
-  id         String            @id @default(uuid())
-  message    String?
-  status     ApplicationStatus @default(pending)
-  created_at DateTime          @default(now())
-  updated_at DateTime          @updatedAt
+  id             String            @id @default(uuid())
+  message        String?
+  proposed_rate  Decimal?          @db.Decimal(10, 2) // Worker can propose a different rate
+  status         ApplicationStatus @default(pending)
+  created_at     DateTime          @default(now())
+  updated_at     DateTime          @updatedAt
 
-  // Relations
+  // ─── Relations ────────────────────────────────────────────
   job_id     String
   job        Job  @relation(fields: [job_id], references: [id])
   user_id    String
   user       User @relation(fields: [user_id], references: [id])
 
-  // One application per user per job
   @@unique([job_id, user_id])
   @@map("applications")
+}
+
+// ─── 4. REVIEW (Trust System) ────────────────────────────────
+// Both clients and workers can review each other after job completion
+model Review {
+  id          String   @id @default(uuid())
+  rating      Int      // 1-5 stars
+  comment     String?
+  
+  // ─── Review Metadata ──────────────────────────────────────
+  is_flagged  Boolean  @default(false)  // Admin can flag inappropriate reviews
+  is_visible  Boolean  @default(true)   // Hidden if flagged
+  
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // ─── Relations ────────────────────────────────────────────
+  job_id       String
+  job          Job    @relation(fields: [job_id], references: [id])
+  reviewer_id  String
+  reviewer     User   @relation("ReviewerReviews", fields: [reviewer_id], references: [id])
+  reviewee_id  String
+  reviewee     User   @relation("RevieweeReviews", fields: [reviewee_id], references: [id])
+
+  // One review per reviewer per job
+  @@unique([job_id, reviewer_id])
+  @@map("reviews")
+}
+
+// ─── 5. DISPUTE (CPA Section 49 — Consumer Protection) ──────
+// Accessible internal dispute resolution mechanism
+model Dispute {
+  id              String          @id @default(uuid())
+  category        DisputeCategory
+  description     String
+  evidence_urls   String[]        @default([]) // Uploaded photos, screenshots
+  
+  // ─── Resolution ───────────────────────────────────────────
+  status          DisputeStatus   @default(open)
+  resolution      String?         // Description of how it was resolved
+  refund_amount   Decimal?        @db.Decimal(10, 2) // If refund issued
+  
+  // ─── Escalation ───────────────────────────────────────────
+  escalated_at    DateTime?
+  escalation_reason String?
+  
+  // ─── Timestamps ───────────────────────────────────────────
+  resolved_at     DateTime?
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+
+  // ─── Relations ────────────────────────────────────────────
+  job_id          String
+  job             Job   @relation(fields: [job_id], references: [id])
+  raised_by_id    String
+  raised_by       User  @relation("DisputeRaiser", fields: [raised_by_id], references: [id])
+  against_id      String
+  against         User  @relation("DisputeTarget", fields: [against_id], references: [id])
+  resolved_by_id  String?
+  resolved_by     User? @relation("DisputeResolver", fields: [resolved_by_id], references: [id])
+
+  @@map("disputes")
+}
+
+// ─── 6. CONTRACTOR AGREEMENT (LRA Section 200A) ─────────────
+// Immutable record of independent contractor classification
+model ContractorAgreement {
+  id                    String   @id @default(uuid())
+  agreement_version     String   // e.g., "1.0", "2.0"
+  content_hash          String   // SHA-256 hash of agreement text
+  
+  // ─── E-Signature (ECTA Section 13) ────────────────────────
+  signed_at             DateTime
+  signed_ip             String
+  signed_user_agent     String
+  
+  // ─── Contractor Declaration Fields ────────────────────────
+  // These directly map to LRA Section 200A factors
+  sets_own_schedule     Boolean  @default(true)
+  no_exclusivity        Boolean  @default(true)   // Not exclusive to one client
+  provides_own_tools    Boolean  @default(true)
+  accepts_risk_of_loss  Boolean  @default(true)
+  
+  // ─── Timestamps ───────────────────────────────────────────
+  created_at            DateTime @default(now())
+  
+  // ─── Relations ────────────────────────────────────────────
+  user_id               String
+  user                  User     @relation(fields: [user_id], references: [id])
+
+  @@map("contractor_agreements")
+}
+
+// ─── 7. TERMS ACCEPTANCE (ECTA Section 13) ──────────────────
+// Every T&C / policy acceptance is logged immutably
+model TermsAcceptance {
+  id                  String    @id @default(uuid())
+  terms_type          TermsType
+  terms_version       String    // e.g., "2024.03.01"
+  terms_hash          String    // SHA-256 of the accepted document
+  
+  // ─── Acceptance Proof (ECTA) ──────────────────────────────
+  accepted_at         DateTime
+  accepted_ip         String
+  accepted_user_agent String
+  
+  // ─── Relations ────────────────────────────────────────────
+  user_id             String
+  user                User @relation(fields: [user_id], references: [id])
+
+  @@map("terms_acceptances")
+}
+
+// ─── 8. CONSENT (POPIA Section 11 — Specific Consent) ───────
+// Tracks granular consent for different data processing purposes
+model Consent {
+  id                String        @id @default(uuid())
+  consent_type      ConsentType
+  consent_version   String        // Version of privacy policy
+  purpose           String        // Human-readable purpose description
+  
+  // ─── Consent Lifecycle ────────────────────────────────────
+  method            ConsentMethod @default(clickwrap)
+  given_at          DateTime
+  withdrawn_at      DateTime?     // POPIA Section 11(3) — right to withdraw
+  
+  // ─── Relations ────────────────────────────────────────────
+  user_id           String
+  user              User @relation(fields: [user_id], references: [id])
+
+  @@map("consents")
+}
+
+// ─── 9. DATA ACCESS REQUEST (POPIA Section 23-24) ───────────
+// Tracks all data subject rights requests
+model DataAccessRequest {
+  id                String            @id @default(uuid())
+  request_type      DataRequestType
+  description       String?           // Details of what's requested
+  
+  // ─── Processing ───────────────────────────────────────────
+  status            DataRequestStatus @default(pending)
+  fulfilled_at      DateTime?
+  rejection_reason  String?           // Required if rejected
+  data_export_url   String?           // Secure link to exported data (if access request)
+  data_export_hash  String?           // Hash of exported data for integrity
+  
+  // ─── Timestamps ───────────────────────────────────────────
+  requested_at      DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+
+  // ─── Relations ────────────────────────────────────────────
+  user_id           String
+  user              User @relation(fields: [user_id], references: [id])
+
+  @@map("data_access_requests")
+}
+
+// ─── 10. PAYMENT (Future-Ready with Escrow) ─────────────────
+model Payment {
+  id                String        @id @default(uuid())
+  amount            Decimal       @db.Decimal(10, 2)
+  platform_fee      Decimal       @db.Decimal(10, 2) @default(0)
+  net_amount        Decimal       @db.Decimal(10, 2) // Amount after fee
+  
+  // ─── Payment Details ──────────────────────────────────────
+  method            PaymentMethod
+  status            PaymentStatus @default(pending)
+  external_ref      String?       // Reference from payment provider (Paystack/Ozow)
+  
+  // ─── Escrow ───────────────────────────────────────────────
+  escrow_held_at    DateTime?
+  escrow_released_at DateTime?
+  
+  // ─── Refund (CPA Section 55-56) ───────────────────────────
+  refund_reason     String?
+  refunded_at       DateTime?
+  
+  // ─── Timestamps ───────────────────────────────────────────
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  // ─── Relations ────────────────────────────────────────────
+  job_id            String
+  job               Job  @relation(fields: [job_id], references: [id])
+  payer_id          String
+  payer             User @relation("PayerPayments", fields: [payer_id], references: [id])
+  payee_id          String
+  payee             User @relation("PayeePayments", fields: [payee_id], references: [id])
+
+  @@map("payments")
+}
+
+// ─── 11. NOTIFICATION ────────────────────────────────────────
+model Notification {
+  id          String           @id @default(uuid())
+  type        NotificationType
+  title       String
+  body        String
+  
+  // ─── Status ───────────────────────────────────────────────
+  read_at     DateTime?
+  
+  // ─── Timestamps ───────────────────────────────────────────
+  created_at  DateTime         @default(now())
+
+  // ─── Relations ────────────────────────────────────────────
+  user_id     String
+  user        User @relation(fields: [user_id], references: [id])
+
+  @@map("notifications")
+}
+
+// ─── 12. PRICING LOG (National Minimum Wage Protection) ─────
+// Tracks AI pricing suggestions and fair pay enforcement
+model PricingLog {
+  id                  String   @id @default(uuid())
+  category            String?  // Job category for rate analysis
+  
+  // ─── Rates ────────────────────────────────────────────────
+  suggested_rate      Decimal  @db.Decimal(10, 2)  // AI suggested fair rate
+  actual_rate         Decimal  @db.Decimal(10, 2)  // What was actually set
+  minimum_wage_rate   Decimal  @db.Decimal(10, 2)  // Current NMW at time of log
+  hours_estimated     Float?
+  
+  // ─── Flags ────────────────────────────────────────────────
+  below_minimum_flag  Boolean  @default(false)
+  client_acknowledged Boolean  @default(false)     // Client saw the warning
+  
+  // ─── Timestamps ───────────────────────────────────────────
+  created_at          DateTime @default(now())
+
+  // ─── Relations ────────────────────────────────────────────
+  job_id              String
+  job                 Job @relation(fields: [job_id], references: [id])
+
+  @@map("pricing_logs")
+}
+
+// ─── 13. EARNINGS LOG (LRA Section 200A Audit) ──────────────
+// Tracks worker earnings to detect misclassification risk
+model EarningsLog {
+  id                      String   @id @default(uuid())
+  period_start            DateTime // Weekly period start
+  period_end              DateTime // Weekly period end
+  
+  // ─── Hours & Earnings ─────────────────────────────────────
+  total_hours             Float
+  total_earned            Decimal  @db.Decimal(10, 2)
+  effective_rate          Decimal  @db.Decimal(10, 2) // total_earned / total_hours
+  unique_clients_count    Int      // Number of different clients in period
+  
+  // ─── Risk Flags (LRA Section 200A monitoring) ─────────────
+  exceeds_40hrs_flag      Boolean  @default(false)  // >40 hrs/week = employee risk
+  single_client_flag      Boolean  @default(false)  // Only 1 client = dependency risk
+  
+  // ─── Timestamps ───────────────────────────────────────────
+  created_at              DateTime @default(now())
+
+  // ─── Relations ────────────────────────────────────────────
+  user_id                 String
+  user                    User @relation(fields: [user_id], references: [id])
+
+  @@map("earnings_logs")
+}
+
+// ─── 14. AUDIT LOG (POPIA Section 8 — Accountability) ───────
+// Immutable log of all significant actions for compliance
+model AuditLog {
+  id            String   @id @default(uuid())
+  action        String   // e.g., "user.created", "job.completed", "dispute.opened"
+  entity_type   String   // e.g., "User", "Job", "Payment"
+  entity_id     String   // ID of affected entity
+  details       Json?    // Additional context (JSON)
+  ip_address    String?
+  user_agent    String?
+  
+  // ─── Timestamps ───────────────────────────────────────────
+  created_at    DateTime @default(now())
+
+  // ─── Relations ────────────────────────────────────────────
+  user_id       String
+  user          User @relation(fields: [user_id], references: [id])
+
+  @@map("audit_logs")
 }
