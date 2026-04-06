@@ -1,0 +1,110 @@
+// Ispani Backend - Prisma Schema
+// Community-driven job marketplace
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── User Types ───────────────────────────────────────────────────
+enum UserType {
+  worker
+  client
+  admin
+}
+
+enum KycStatus {
+  pending
+  verified
+  rejected
+}
+
+// ─── Application Status ──────────────────────────────────────────
+enum ApplicationStatus {
+  pending
+  accepted
+  rejected
+  withdrawn
+}
+
+// ─── Job Status ──────────────────────────────────────────────────
+enum JobStatus {
+  draft
+  open
+  assigned
+  in_progress
+  completed
+  cancelled
+}
+
+// ─── Models ──────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  type          UserType  @default(worker)
+  email         String    @unique
+  phone         String?
+  first_name    String?
+  last_name     String?
+  password_hash String
+  kyc_status    KycStatus @default(pending)
+  trust_score   Float     @default(50)
+  skills        String[]  @default([])
+  location_lat  Float?
+  location_lng  Float?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  // Relations
+  posted_jobs    Job[]         @relation("ClientJobs")
+  assigned_jobs  Job[]         @relation("WorkerJobs")
+  applications   Application[]
+
+  @@map("users")
+}
+
+model Job {
+  id               String    @id @default(uuid())
+  title            String
+  description      String
+  category         String?
+  location_lat     Float?
+  location_lng     Float?
+  location_address String?
+  payment_amount   Decimal   @db.Decimal(10, 2)
+  status           JobStatus @default(draft)
+  deadline         DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  // Relations
+  client_id   String
+  client      User          @relation("ClientJobs", fields: [client_id], references: [id])
+  worker_id   String?
+  worker      User?         @relation("WorkerJobs", fields: [worker_id], references: [id])
+  applications Application[]
+
+  @@map("jobs")
+}
+
+model Application {
+  id         String            @id @default(uuid())
+  message    String?
+  status     ApplicationStatus @default(pending)
+  created_at DateTime          @default(now())
+  updated_at DateTime          @updatedAt
+
+  // Relations
+  job_id     String
+  job        Job  @relation(fields: [job_id], references: [id])
+  user_id    String
+  user       User @relation(fields: [user_id], references: [id])
+
+  // One application per user per job
+  @@unique([job_id, user_id])
+  @@map("applications")
+}
