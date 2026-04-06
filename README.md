@@ -1,250 +1,136 @@
-# 🚀 ISPANI — Full Technical Architecture & Build Structure
+# ISPANI BACKEND 🚀
 
-## 📌 Overview
+## Overview
 
-**Ispani** is a multi-tenant SaaS labour marketplace and fintech platform designed to connect:
-
-* Workers (job seekers)
-* Clients (individuals)
-* Organizations (businesses, government, enterprises)
-
-It provides a **trusted, compliant, and fair-pay-driven ecosystem** for managing and executing work at scale.
+Ispani is a community-driven job marketplace designed to connect local workers with nearby opportunities. This backend powers user management, job posting, and matching functionality.
 
 ---
 
-## 🛠️ Quick Start
+## 🎯 Current Stage (MVP)
 
-### Prerequisites
+This project is currently focused on a **Minimum Viable Product (MVP)** with the following core features:
 
-* **Node.js** >= 20.0.0 ([download](https://nodejs.org/))
-* **pnpm** 9.15.0 (`npm install -g pnpm@9.15.0`)
-* **Docker** & Docker Compose ([download](https://docker.com/))
-
-### Setup
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/Katlego-Bruce/ispani-main.git
-cd ispani-main
-
-# 2. Install dependencies
-pnpm install
-
-# 3. Start infrastructure (PostgreSQL + Redis)
-docker compose up -d
-
-# 4. Copy environment variables
-cp apps/api/.env.example apps/api/.env.local
-
-# 5. Start all apps in development mode
-pnpm dev
-```
-
-### Available Scripts
-
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start all apps in development mode |
-| `pnpm build` | Build all apps and packages |
-| `pnpm lint` | Lint all apps and packages |
-| `pnpm test` | Run tests across all apps |
-| `pnpm format` | Format code with Prettier |
-| `pnpm clean` | Clean all build outputs |
-
-### Development URLs
-
-| App | URL | Port |
-|-----|-----|------|
-| Web (Tenant Dashboard) | http://localhost:3000 | 3000 |
-| Admin Panel | http://localhost:3001 | 3001 |
-| API (NestJS) | http://localhost:8080 | 8080 |
-| Mobile (Expo) | Expo Dev Client | 8081 |
-
-### Using GitHub Codespaces
-
-1. Click **"Code"** → **"Codespaces"** → **"Create codespace on main"**
-2. Wait for the devcontainer to build (~3 min)
-3. Run `pnpm install` then `pnpm dev`
-4. Ports are auto-forwarded for instant access
+* User registration (phone-based)
+* Job posting
+* Job browsing
+* Basic matching (skills + location)
 
 ---
 
-## 🧠 Architecture Summary
+## 🛠 Tech Stack
 
-### Architecture Style
-
-* Multi-tenant SaaS (B2B)
-* Marketplace (B2C)
-* Fintech (payments + escrow)
-
-### Pattern
-
-* Modular Monolith (initial)
-* Event-Driven (internally)
-* Microservices-ready (future scaling)
+* Node.js
+* Express.js
+* PostgreSQL
+* Prisma ORM
+* dotenv
 
 ---
 
-## 🏗️ High-Level System Design
+## 📁 Project Structure
 
 ```
-Mobile App (React Native)
-        ↓
-Web App (Next.js SaaS Dashboard)
-        ↓
-API Gateway (NestJS)
-        ↓
-----------------------------------
-Core Services (Modules)
-----------------------------------
-Auth | Users | Jobs | Escrow | Wallet | Trust | Disputes | Billing
-----------------------------------
-        ↓
-PostgreSQL (Primary DB)
-Redis (Cache + Queue + Realtime)
-        ↓
-External Services (Payments, SMS, Storage)
+src/
+ ├── modules/
+ │    ├── users/
+ │    ├── jobs/
+ │    ├── applications/
+ │
+ ├── config/
+ ├── services/
+ ├── middleware/
+ ├── server.js
 ```
 
 ---
 
-## 📦 Monorepo Structure (Turborepo)
+## 🚀 Getting Started
+
+### 1. Install dependencies
 
 ```
-ispani/
-├── apps/
-│   ├── mobile/          # React Native (Expo)
-│   ├── web/             # Next.js (Tenant + Marketing)
-│   ├── admin/           # Super Admin Panel
-│   └── api/             # NestJS backend
-│
-├── packages/
-│   ├── shared/          # Types, DTOs, constants
-│   ├── ui/              # Shared UI components
-│   ├── config/          # ESLint, TSConfig, Prettier
-│   ├── utils/           # Helpers
-│   └── sdk/             # API client SDK
-│
-├── infra/
-│   ├── docker/
-│   ├── terraform/
-│   └── ci-cd/
-│
-├── .devcontainer/       # GitHub Codespace config
-├── .github/workflows/   # CI/CD pipelines
-├── turbo.json
-├── pnpm-workspace.yaml
-└── package.json
+npm install
 ```
 
----
+### 2. Setup environment variables
 
-## 🧩 Core Technology Stack
-
-### Frontend
-
-* React Native (Expo) — Mobile app
-* Next.js 14 (App Router) — Web + Admin
-
-### Backend
-
-* NestJS (Node.js + TypeScript) — API
-
-### Infrastructure
-
-* PostgreSQL (with PostGIS) — Database
-* Redis — Cache, queues, WebSockets
-* BullMQ — Job queue
-* Docker Compose — Local development
-
----
-
-## 💳 Payments Stack (South Africa Optimized)
-
-* PayFast → subscriptions
-* Peach Payments / iKhokha → job funding
-* PayShap → worker payouts
-* Ozow → instant EFT
-
----
-
-## 🏢 Multi-Tenancy Model
-
-* Row-level multi-tenancy using `organization_id`
-* PostgreSQL Row-Level Security (RLS)
-
----
-
-## 🧠 Backend Modules (NestJS)
+Create a `.env` file:
 
 ```
-modules/
-├── auth/          ├── escrow/        ├── notifications/
-├── users/         ├── wallet/        ├── realtime/
-├── organizations/ ├── ledger/        ├── analytics/
-├── billing/       ├── trust/         ├── community/
-├── jobs/          ├── disputes/      ├── fair-pay/
-├── job-execution/                    └── audit/
+DATABASE_URL="your_database_url"
+PORT=3000
+```
+
+### 3. Setup database
+
+```
+npx prisma migrate dev
+```
+
+### 4. Run server
+
+```
+npm run dev
+```
+
+Server will run on:
+
+```
+http://localhost:3000
 ```
 
 ---
 
-## ⚡ Event-Driven Architecture
+## 📦 API (Initial)
 
-### Events
+### Users
 
-* job.created → job.assigned → escrow.funded → job.completed → payout.processed
+* POST `/users/register`
+* POST `/users/login`
 
-### Queue System
+### Jobs
 
-* BullMQ (Redis)
-
----
-
-## 🔐 Security
-
-* JWT authentication + OTP via SMS
-* Rate limiting (Redis) + Device tracking
-* KYC verification (ID + selfie + bank verification)
+* POST `/jobs`
+* GET `/jobs`
 
 ---
 
-## 🚀 Build Phases
+## 🔥 Vision
 
-### Phase 1 (MVP)
+Ispani is not just a job marketplace.
 
-* Authentication
-* Job posting & assignment
-* Escrow system
-* Wallet & payouts
+It is being built into a **community economic engine** that:
 
-### Phase 2
-
-* Trust system
-* Disputes
-* Fair pay enforcement
-
-### Phase 3
-
-* Analytics
-* Community features
-* Enterprise capabilities
+* Keeps money within local communities
+* Promotes fair work and pricing
+* Empowers informal workers
 
 ---
 
-## 💡 Vision
+## 🤖 Future Enhancements (AI Layer)
 
-Ispani is designed to become:
-
-* A **trusted labour marketplace**
-* A **fintech-enabled payment system**
-* A **scalable SaaS platform**
-* A **fair-pay enforcement engine**
+* Smart job-worker matching
+* Fair price recommendations
+* Fraud detection
+* Multilingual support (isiZulu, English, etc.)
 
 ---
 
-## 📄 License
+## ⚠️ Notes
 
-Private — All rights reserved.
+This project is under active development. Structure and features will evolve as the platform grows.
 
 ---
+
+## 💡 Next Steps
+
+* Build user authentication
+* Implement job posting API
+* Add database relationships
+* Deploy backend
+
+---
+
+## 👨‍💻 Author
+
+Katlego Ramokgadi
