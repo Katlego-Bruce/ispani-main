@@ -1,0 +1,10 @@
+const express = require('express');
+const router = express.Router();
+const { authenticate } = require('../../middleware/auth');
+const { authorize } = require('../../middleware/authorize');
+const c = require('./disputes.controller');
+router.post('/', authenticate, c.create);
+router.get('/', authenticate, authorize('admin'), c.list);
+router.get('/:id', authenticate, c.getById);
+router.post('/:id/resolve', authenticate, authorize('admin'), c.resolve);
+module.exports = router;
